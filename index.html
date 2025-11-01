@@ -2,99 +2,115 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Universal Search</title>
-    <style>
-        body {
-            background: #0e0e0e;
-            color: #f1f1f1;
-            font-family: 'Poppins', sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-
-        .search-box {
-            display: flex;
-            align-items: center;
-            background: #1a1a1a;
-            border-radius: 14px;
-            padding: 10px 20px;
-            width: 500px;
-            max-width: 90%;
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
-        }
-
-        input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: white;
-            font-size: 1.2em;
-            outline: none;
-        }
-
-        select,
-        button {
-            background: #262626;
-            border: none;
-            color: white;
-            border-radius: 10px;
-            margin-left: 10px;
-            padding: 8px 14px;
-            cursor: pointer;
-            font-size: 1em;
-        }
-
-        button:hover {
-            background: #333;
-        }
-
-        h1 {
-            font-weight: 500;
-            margin-bottom: 30px;
-            opacity: 0.8;
-        }
-    </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Universal Search — Tomouh</title>
+    <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
-    <h1>Universal Search</h1>
-    <div class="search-box">
-        <input type="text" id="query" placeholder="Type your search..." autofocus />
-        <select id="engine">
-            <option value="google">Google</option>
-            <option value="youtube">YouTube</option>
-            <option value="chatgpt">ChatGPT</option>
-            <option value="reddit">Reddit</option>
-            <option value="github">GitHub</option>
-        </select>
-        <button onclick="search()">Go</button>
+    <div class="search-wrapper" id="wrapper">
+        <div class="search-bar">
+            <textarea id="query" rows="1" placeholder="Type your search... (Shift+Enter for newline)"></textarea>
+            <div id="selectButton" class="select-root">
+                <img class="icon" id="selectedIcon" src="https://www.google.com/favicon.ico" alt="">
+                <span id="selectedLabel">Google</span>
+            </div>
+            <button id="searchBtn" class="btn">Go</button>
+        </div>
+
+        <!-- Added hints UI -->
+        <div class="hints" aria-hidden="false">
+            <div class="hint"><span class="kbd">Enter</span><span>Go</span></div>
+            <div class="hint"><span class="kbd">Shift+Enter</span><span>New line</span></div>
+            <div class="hint"><span class="kbd">Esc</span><span>Close</span></div>
+        </div>
+
+        <select id="nativeSelect" class="sr-only"></select>
     </div>
 
     <script>
-        function search() {
-            const query = encodeURIComponent(document.getElementById('query').value);
-            const engine = document.getElementById('engine').value;
+        const { ipcRenderer } = (() => { try { return require('electron'); } catch { return {}; } })();
 
-            const urls = {
-                google: `https://www.google.com/search?q=${query}`,
-                youtube: `https://www.youtube.com/results?search_query=${query}`,
-                reddit: `https://www.reddit.com/search/?q=${query}`,
-                github: `https://github.com/search?q=${query}`,
-                chatgpt: `https://chat.openai.com/?q=${query}`
-            };
+        const wrapper = document.getElementById("wrapper");
+        const queryBox = document.getElementById("query");
 
-            if (!query) return;
-            window.open(urls[engine], '_blank');
+        queryBox.addEventListener("focus", () => wrapper.classList.add("focused"));
+        queryBox.addEventListener("blur", () => wrapper.classList.remove("focused"));
+
+        // grow textarea smoothly + notify electron
+        queryBox.addEventListener("input", () => {
+            queryBox.style.height = "auto";
+            const scrollH = Math.min(queryBox.scrollHeight, 200);
+            queryBox.style.height = scrollH + "px";
+            if (ipcRenderer?.send) ipcRenderer.send("adjust-window-height", scrollH + 80);
+        });
+
+        // engines
+        const engines = [
+            { id: 'google', label: 'Google', url: 'https://www.google.com/search?q=', icon: 'https://www.google.com/favicon.ico' },
+            { id: 'youtube', label: 'YouTube', url: 'https://www.youtube.com/results?search_query=', icon: 'https://www.youtube.com/s/desktop/8d8ed6d7/img/favicon_32x32.png' },
+            { id: 'chatgpt', label: 'ChatGPT', url: 'https://chat.openai.com/?q=', icon: 'https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg' },
+            { id: 'reddit', label: 'Reddit', url: 'https://www.reddit.com/search/?q=', icon: 'https://www.redditstatic.com/desktop2x/img/favicon/favicon-32x32.png' },
+            { id: 'github', label: 'GitHub', url: 'https://github.com/search?q=', icon: 'https://github.githubassets.com/favicons/favicon.png' }
+        ];
+
+        let current = 0;
+        const selectBtn = document.getElementById("selectButton");
+        const selectLabel = document.getElementById("selectedLabel");
+        const selectIcon = document.getElementById("selectedIcon");
+
+        function selectEngine(i) {
+            current = i;
+            selectIcon.src = engines[i].icon;
+            selectLabel.textContent = engines[i].label;
         }
+        selectEngine(0);
 
-        document.getElementById('query').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') search();
+        const menuPanel = document.createElement("div");
+        menuPanel.className = "menu-panel";
+        engines.forEach((e, i) => {
+            const item = document.createElement("div");
+            item.className = "menu-item";
+            item.innerHTML = `<img src="${e.icon}"><span>${e.label}</span>`;
+            item.onclick = () => { selectEngine(i); document.body.removeChild(menuPanel); };
+            menuPanel.appendChild(item);
+        });
+
+        selectBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (document.body.contains(menuPanel)) {
+                document.body.removeChild(menuPanel);
+                return;
+            }
+            document.body.appendChild(menuPanel);
+            const r = selectBtn.getBoundingClientRect();
+            menuPanel.style.top = `${r.bottom + 6}px`;
+            menuPanel.style.left = `${r.left}px`;
+        };
+
+        document.addEventListener("click", (e) => {
+            if (!menuPanel.contains(e.target) && e.target !== selectBtn) {
+                if (document.body.contains(menuPanel)) document.body.removeChild(menuPanel);
+            }
+        });
+
+        document.getElementById("searchBtn").onclick = () => {
+            const q = queryBox.value.trim();
+            if (!q) return;
+            const e = engines[current];
+            const url = e.url + encodeURIComponent(q);
+            if (ipcRenderer?.send) ipcRenderer.send("open-url", url);
+            else window.open(url, "_blank");
+        };
+
+        queryBox.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById("searchBtn").click();
+            } else if (e.key === "Escape" && ipcRenderer?.send) {
+                ipcRenderer.send("hide-window");
+            }
         });
     </script>
 </body>
