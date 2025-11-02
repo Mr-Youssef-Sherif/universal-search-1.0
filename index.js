@@ -86,7 +86,11 @@ app.whenReady().then(() => {
 
     // Register global shortcuts
     globalShortcut.register('Control+Q', toggleMainWindow);
-    globalShortcut.register('Escape', toggleMainWindow);
+    globalShortcut.register('Escape', () => {
+    if (win && win.isVisible()) {
+        win.hide();
+        }
+    });
 
     // Hide window via IPC from renderer
     ipcMain.on('hide-window', () => win.hide());
@@ -155,3 +159,4 @@ ipcMain.on('engine-selected', (event, i) => {
 app.on('will-quit', () => {
     globalShortcut.unregisterAll();
 });
+
