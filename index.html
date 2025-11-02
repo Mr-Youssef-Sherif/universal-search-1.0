@@ -26,79 +26,84 @@
     </div>
 
     <script>
-        const engines = require('./engines.json');
-        const { ipcRenderer } = (() => { try { return require('electron'); } catch { return {}; } })();
-
-        const wrapper = document.getElementById("wrapper");
-        const queryBox = document.getElementById("query");
-        const selectBtn = document.getElementById("selectButton");
-        const selectLabel = document.getElementById("selectedLabel");
-        const selectIcon = document.getElementById("selectedIcon");
-
-        queryBox.addEventListener("focus", () => wrapper.classList.add("focused"));
-        queryBox.addEventListener("blur", () => wrapper.classList.remove("focused"));
-
-        queryBox.addEventListener("input", () => {
-            queryBox.style.height = "auto";
-            const scrollH = Math.min(queryBox.scrollHeight, 200);
-            queryBox.style.height = scrollH + "px";
-            if (ipcRenderer?.send) ipcRenderer.send("adjust-window-height", scrollH + 80);
-        });
-
-        let current = 0;
-        function selectEngine(i) {
-            current = i;
-            selectIcon.src = engines[i].icon;
-            selectLabel.textContent = engines[i].label;
-        }
-        selectEngine(0);
-
-        ipcRenderer.on('focus-query', () => {
-            queryBox.focus();
-            queryBox.selectionStart = queryBox.value.length; // move cursor to end
-        });
-
-        // === NEW MENU LOGIC USING IPC ===
-        selectBtn.onclick = (e) => {
-            e.stopPropagation();
-            const rect = selectBtn.getBoundingClientRect();
-            const screenX = rect.x + window.screenX;
-            const screenY = rect.y + window.screenY + rect.height;
-
-            // send click position to main process
-            if (ipcRenderer?.send) {
-                ipcRenderer.send("toggle-menu-at", { x: screenX, y: screenY });
+        (async () => {
+            if (!window.electronAPI) {
+                console.error('electronAPI is not available!');
+                return;
             }
-        };
 
-        document.addEventListener("click", () => {
-            if (ipcRenderer?.send) ipcRenderer.send("close-menu");
-        });
+            const engines = await window.electronAPI.requestEngines(); // NEW
 
-        ipcRenderer.on("engine-selected", (e, i) => {
-            selectEngine(i);
-        });
+            const wrapper = document.getElementById("wrapper");
+            const queryBox = document.getElementById("query");
+            const selectBtn = document.getElementById("selectButton");
+            const selectLabel = document.getElementById("selectedLabel");
+            const selectIcon = document.getElementById("selectedIcon");
 
-        // Search button
-        document.getElementById("searchBtn").onclick = () => {
-            const q = queryBox.value.trim();
-            if (!q) return;
-            const e = engines[current];
-            const url = e.url + encodeURIComponent(q);
-            if (ipcRenderer?.send) ipcRenderer.send("open-url", url);
-            else window.open(url, "_blank");
-        };
-
-        // Keyboard shortcuts
-        queryBox.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                document.getElementById("searchBtn").click();
-            } else if (e.key === "Escape" && ipcRenderer?.send) {
-                ipcRenderer.send("hide-window");
+            let current = 0;
+            function selectEngine(i) {
+                current = i;
+                selectIcon.src = engines[i].icon;
+                selectLabel.textContent = engines[i].label;
             }
-        });
+            selectEngine(0);
+
+            // Focus/blur styling
+            queryBox.addEventListener("focus", () => wrapper.classList.add("focused"));
+            queryBox.addEventListener("blur", () => wrapper.classList.remove("focused"));
+
+            // Auto-resize
+            queryBox.addEventListener("input", () => {
+                queryBox.style.height = "auto";
+                const scrollH = Math.min(queryBox.scrollHeight, 200);
+                queryBox.style.height = scrollH + "px";
+                window.electronAPI.adjustHeight(scrollH + 80);
+            });
+
+            // Focus from main
+            window.electronAPI.onFocusQuery(() => {
+                queryBox.focus();
+                queryBox.selectionStart = queryBox.value.length;
+            });
+
+            // Menu toggle
+            selectBtn.onclick = async (e) => {
+                e.stopPropagation();
+                const rect = selectBtn.getBoundingClientRect();
+                const { x: winX, y: winY } = await window.electronAPI.getWindowPosition();
+
+                const menuX = Math.round(winX + rect.left);
+                const menuY = Math.round(winY + rect.bottom);
+
+                window.electronAPI.toggleMenuAt({ x: menuX, y: menuY });
+            };
+
+            // Close menu on click outside
+            document.addEventListener("click", () => window.electronAPI.closeMenu());
+
+            // Engine selected from menu
+            window.electronAPI.onEngineSelected((e, i) => selectEngine(i));
+
+            // Search
+            document.getElementById("searchBtn").onclick = () => {
+                const q = queryBox.value.trim();
+                if (!q) return;
+                const e = engines[current];
+                window.electronAPI.openURL(e.url + encodeURIComponent(q));
+            };
+
+            // Keyboard shortcuts
+            queryBox.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    document.getElementById("searchBtn").click();
+                } else if (e.key === "Escape") {
+                    window.electronAPI.hideWindow();
+                }
+            });
+        })();
     </script>
+
 </body>
 
 </html>

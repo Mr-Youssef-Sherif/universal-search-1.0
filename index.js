@@ -1,10 +1,12 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, shell } = require('electron');
+const path = require('path');
+
+const engines = require('./engines.json'); // main process reads JSON
 
 let win;
-
-let menuWin; // new window for dropdown
-
-let menuHeight = 150; // default initial height
+let menuWin;
+let menuHeight = 150;
+let menuWidth = 160;
 
 function createWindow() {
     win = new BrowserWindow({
@@ -18,10 +20,10 @@ function createWindow() {
         roundedCorners: true,
         show: false,
         backgroundColor: '#00000000',
-        resizable: true, // allow dynamic resizing
+        resizable: true,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true, // keep true
         },
     });
 
@@ -32,22 +34,27 @@ function createWindow() {
 function createMenuWindow() {
     menuWin = new BrowserWindow({
         width: 160,
-        height: 150, // initial height
+        height: 150,
         frame: false,
         transparent: true,
         alwaysOnTop: true,
         roundedCorners: true,
         show: false,
-        parent: win, // attach to main window
+        parent: win,
         resizable: false,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
+            preload: path.join(__dirname, 'menuPreload.js'),
+            contextIsolation: true,
         },
     });
 
-    menuWin.loadFile('menu.html'); // we’ll create this next
+    menuWin.loadFile('menu.html');
 }
+
+// ---------------- IPC ----------------
+
+// Serve engines.json to renderer
+ipcMain.handle('get-engines', () => engines);
 
 function toggleMainWindow() {
     if (!win) return;
@@ -65,6 +72,13 @@ function toggleMainWindow() {
         }
     }
 }
+
+ipcMain.handle('get-window-position', () => {
+    if (!win) return { x: 0, y: 0 };
+    const bounds = win.getBounds();
+    return { x: bounds.x, y: bounds.y };
+});
+
 
 app.whenReady().then(() => {
     createWindow();

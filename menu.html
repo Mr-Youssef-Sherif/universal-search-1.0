@@ -5,99 +5,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Menu</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: "Inter", sans-serif;
-            background: rgba(0, 0, 0, 0);
-            /* fully transparent background */
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            overflow: hidden;
-
-            display: inline-block;
-            /* shrink-wrap the content */
-        }
-
-
-        #menuContainer {
-            display: flex;
-            flex-direction: column;
-            padding: 4px 8px;
-            /* tight padding inside */
-            gap: 4px;
-        }
-
-
-        .menu-item {
-            padding: 8px 12px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 14px;
-            color: #f0f0f0;
-            border-radius: 12px;
-            /* slightly larger for better roundness */
-            background: rgba(50, 50, 50, 0.85);
-            /* subtle background so edges feel complete */
-        }
-
-        .menu-item:hover {
-            background: rgba(255, 255, 255, 0.12);
-            transform: translateX(3px);
-        }
-
-        .menu-item img {
-            width: 20px;
-            height: 20px;
-            border-radius: 6px;
-            flex-shrink: 0;
-            /* prevent icon from shrinking */
-        }
-
-        .menu-item span {
-            flex: 1;
-            /* text fills remaining space */
-            white-space: nowrap;
-            /* prevent wrapping */
-            overflow: hidden;
-            text-overflow: ellipsis;
-            /* nice truncation if text is too long */
-        }
-
-        .menu-item:last-child {
-            margin-bottom: 0;
-        }
-    </style>
+    <link rel="stylesheet" href="menu.css" />
 </head>
 
 <body>
     <div id="menuContainer"></div>
 
     <script>
-        const { ipcRenderer } = require('electron');
-        const engines = require('./engines.json');
+        (async () => {
+            if (!window.menuAPI) {
+                console.error('menuAPI is not available!');
+                return;
+            }
 
-        const container = document.getElementById('menuContainer');
+            const engines = await window.menuAPI.requestEngines();
+            const container = document.getElementById('menuContainer');
 
-        engines.forEach((e, i) => {
-            const div = document.createElement('div');
-            div.className = 'menu-item';
-            div.innerHTML = `<img src="${e.icon}" alt="${e.label}"><span>${e.label}</span>`;
-            div.onclick = () => ipcRenderer.send('engine-selected', i);
-            container.appendChild(div);
-        });
+            engines.forEach((e, i) => {
+                const div = document.createElement('div');
+                div.className = 'menu-item';
+                div.innerHTML = `<img src="${e.icon}" alt="${e.label}"><span>${e.label}</span>`;
+                div.onclick = () => window.menuAPI.selectEngine(i);
+                container.appendChild(div);
+            });
 
-        // After rendering, send height to main process
-        window.onload = () => {
-            const height = container.scrollHeight + 12; // add padding for top/bottom
-            const width = container.scrollWidth + 16; // add padding for left/right
-            ipcRenderer.send('set-menu-dimensions', { height, width });
-        };
-
+            // Wait a tick for all items (including images) to render
+            requestAnimationFrame(() => {
+                const padding = 20; // extra spacing if needed
+                const height = container.scrollHeight + padding;
+                const width = container.scrollWidth + 16; // keep your width padding
+                window.menuAPI.setMenuDimensions({ height, width });
+            });
+        })();
     </script>
+
+
 </body>
 
 </html>
