@@ -18,27 +18,26 @@
             </div>
             <button id="searchBtn" class="btn">Go</button>
         </div>
-
-        <!-- Added hints UI -->
-        <div class="hints" aria-hidden="false">
+        <div class="hints">
             <div class="hint"><span class="kbd">Enter</span><span>Go</span></div>
             <div class="hint"><span class="kbd">Shift+Enter</span><span>New line</span></div>
             <div class="hint"><span class="kbd">Esc</span><span>Close</span></div>
         </div>
-
-        <select id="nativeSelect" class="sr-only"></select>
     </div>
 
     <script>
+        const engines = require('./engines.json');
         const { ipcRenderer } = (() => { try { return require('electron'); } catch { return {}; } })();
 
         const wrapper = document.getElementById("wrapper");
         const queryBox = document.getElementById("query");
+        const selectBtn = document.getElementById("selectButton");
+        const selectLabel = document.getElementById("selectedLabel");
+        const selectIcon = document.getElementById("selectedIcon");
 
         queryBox.addEventListener("focus", () => wrapper.classList.add("focused"));
         queryBox.addEventListener("blur", () => wrapper.classList.remove("focused"));
 
-        // grow textarea smoothly + notify electron
         queryBox.addEventListener("input", () => {
             queryBox.style.height = "auto";
             const scrollH = Math.min(queryBox.scrollHeight, 200);
@@ -46,20 +45,7 @@
             if (ipcRenderer?.send) ipcRenderer.send("adjust-window-height", scrollH + 80);
         });
 
-        // engines
-        const engines = [
-            { id: 'google', label: 'Google', url: 'https://www.google.com/search?q=', icon: 'https://www.google.com/favicon.ico' },
-            { id: 'youtube', label: 'YouTube', url: 'https://www.youtube.com/results?search_query=', icon: 'https://www.youtube.com/s/desktop/8d8ed6d7/img/favicon_32x32.png' },
-            { id: 'chatgpt', label: 'ChatGPT', url: 'https://chat.openai.com/?q=', icon: 'https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg' },
-            { id: 'reddit', label: 'Reddit', url: 'https://www.reddit.com/search/?q=', icon: 'https://www.redditstatic.com/desktop2x/img/favicon/favicon-32x32.png' },
-            { id: 'github', label: 'GitHub', url: 'https://github.com/search?q=', icon: 'https://github.githubassets.com/favicons/favicon.png' }
-        ];
-
         let current = 0;
-        const selectBtn = document.getElementById("selectButton");
-        const selectLabel = document.getElementById("selectedLabel");
-        const selectIcon = document.getElementById("selectedIcon");
-
         function selectEngine(i) {
             current = i;
             selectIcon.src = engines[i].icon;
@@ -67,34 +53,33 @@
         }
         selectEngine(0);
 
-        const menuPanel = document.createElement("div");
-        menuPanel.className = "menu-panel";
-        engines.forEach((e, i) => {
-            const item = document.createElement("div");
-            item.className = "menu-item";
-            item.innerHTML = `<img src="${e.icon}"><span>${e.label}</span>`;
-            item.onclick = () => { selectEngine(i); document.body.removeChild(menuPanel); };
-            menuPanel.appendChild(item);
+        ipcRenderer.on('focus-query', () => {
+            queryBox.focus();
+            queryBox.selectionStart = queryBox.value.length; // move cursor to end
         });
 
+        // === NEW MENU LOGIC USING IPC ===
         selectBtn.onclick = (e) => {
             e.stopPropagation();
-            if (document.body.contains(menuPanel)) {
-                document.body.removeChild(menuPanel);
-                return;
+            const rect = selectBtn.getBoundingClientRect();
+            const screenX = rect.x + window.screenX;
+            const screenY = rect.y + window.screenY + rect.height;
+
+            // send click position to main process
+            if (ipcRenderer?.send) {
+                ipcRenderer.send("toggle-menu-at", { x: screenX, y: screenY });
             }
-            document.body.appendChild(menuPanel);
-            const r = selectBtn.getBoundingClientRect();
-            menuPanel.style.top = `${r.bottom + 6}px`;
-            menuPanel.style.left = `${r.left}px`;
         };
 
-        document.addEventListener("click", (e) => {
-            if (!menuPanel.contains(e.target) && e.target !== selectBtn) {
-                if (document.body.contains(menuPanel)) document.body.removeChild(menuPanel);
-            }
+        document.addEventListener("click", () => {
+            if (ipcRenderer?.send) ipcRenderer.send("close-menu");
         });
 
+        ipcRenderer.on("engine-selected", (e, i) => {
+            selectEngine(i);
+        });
+
+        // Search button
         document.getElementById("searchBtn").onclick = () => {
             const q = queryBox.value.trim();
             if (!q) return;
@@ -104,6 +89,7 @@
             else window.open(url, "_blank");
         };
 
+        // Keyboard shortcuts
         queryBox.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();

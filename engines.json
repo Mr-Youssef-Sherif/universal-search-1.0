@@ -1,0 +1,32 @@
+[
+    {
+        "id": "google",
+        "label": "Google",
+        "url": "https://www.google.com/search?q=",
+        "icon": "./assets/menu-logos/google.svg"
+    },
+    {
+        "id": "youtube",
+        "label": "YouTube",
+        "url": "https://www.youtube.com/results?search_query=",
+        "icon": "./assets/menu-logos/youtube.svg"
+    },
+    {
+        "id": "chatgpt",
+        "label": "ChatGPT",
+        "url": "https://chat.openai.com/?q=",
+        "icon": "./assets/menu-logos/chatgpt.svg"
+    },
+    {
+        "id": "reddit",
+        "label": "Reddit",
+        "url": "https://www.reddit.com/search/?q=",
+        "icon": "./assets/menu-logos/reddit.svg"
+    },
+    {
+        "id": "github",
+        "label": "GitHub",
+        "url": "https://github.com/search?q=",
+        "icon": "./assets/menu-logos/github.svg"
+    }
+]
